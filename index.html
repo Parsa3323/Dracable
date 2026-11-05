@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dracable Calculator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        accent: {
+                            blue: '#3b82f6',
+                            purple: '#8b5cf6',
+                            emerald: '#10b981',
+                            rose: '#f43f5e',
+                            amber: '#f59e0b'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        ui: ['Manrope', 'system-ui', 'sans-serif'],
+                        display: ['Space Grotesk', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Compact Scrollbar */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.4);
+            border-radius: 4px;
+        }
+
+        /* Inline SVG icons (no external icon font needed) */
+        .icon {
+            width: 1em;
+            height: 1em;
+            display: inline-block;
+            vertical-align: -0.125em;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        /* Closed-hand cursor everywhere while dragging */
+        body.is-dragging,
+        body.is-dragging * {
+            cursor: grabbing !important;
+        }
+
+        /* Minimized calculator bubble */
+        #bubble-face {
+            position: absolute;
+            z-index: 50;
+            width: 60px;
+            height: 60px;
+            padding: 0;
+            border: 0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background-color: #3b82f6;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -10px 18px rgba(0, 0, 0, 0.14);
+            cursor: grab;
+            touch-action: none;
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform 160ms cubic-bezier(0.2, 0, 0, 1), background-color 200ms ease;
+        }
+        #bubble-face[hidden] { display: none; }
+        #bubble-face:active { transform: scale(0.9); }
+        #bubble-face:focus-visible { box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.75); }
+        #bubble-face .icon {
+            width: 28px;
+            height: 28px;
+            stroke-width: 1.9;
+            transform-origin: center;
+            pointer-events: none;
+        }
+
+        /* Glass Surface */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.90);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        .dark .glass-card {
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+
+        .btn-calc {
+            position: relative;
+            overflow: hidden;
+            isolation: isolate;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            will-change: transform;
+            transform: perspective(320px) translate(0px, 0px) rotateX(0deg) rotateY(0deg) scale(1);
+            /* RELEASE: soft spring back to rest */
+            transition: transform 320ms cubic-bezier(0.34, 1.45, 0.64, 1), background-color 150ms ease;
+        }
+
+        /* Outline light: one clean gray gradient outline, bright at top-left and bottom-right,
+           fading smoothly to nothing along the sides. It REPLACES the old uniform border,
+           so there are no double lines or uneven gray patches. */
+        .btn-calc {
+            border-width: 0 !important;
+            --rim-a: 161 161 170;      /* rim colour (rgb) in dark mode */
+            --rim-strength-a: 0.22;    /* top-left */
+            --rim-strength-b: 0.15;    /* bottom-right */
+        }
+
+        html:not(.dark) .btn-calc {
+            --rim-a: 100 116 139;      /* slate gray in light mode */
+            --rim-strength-a: 0.2;
+            --rim-strength-b: 0.13;
+        }
+
+        .btn-calc::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            padding: 1px;
+            border-radius: inherit;
+            background: linear-gradient(
+                135deg,
+                rgb(var(--rim-a) / var(--rim-strength-a)) 0%,
+                rgb(var(--rim-a) / calc(var(--rim-strength-a) * 0.55)) 10%,
+                rgb(var(--rim-a) / calc(var(--rim-strength-a) * 0.18)) 22%,
+                rgb(var(--rim-a) / 0) 40%,
+                rgb(var(--rim-a) / 0) 60%,
+                rgb(var(--rim-a) / calc(var(--rim-strength-b) * 0.18)) 78%,
+                rgb(var(--rim-a) / calc(var(--rim-strength-b) * 0.55)) 90%,
+                rgb(var(--rim-a) / var(--rim-strength-b)) 100%
+            );
+            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor;
+            mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+            pointer-events: none;
+            z-index: 2;
+            transition: opacity 200ms ease;
+        }
+
+        /* Pressed-state tint overlay (replaces filter: brightness, which repainted the whole button) */
+        .btn-calc::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            background: currentColor;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 0;
+            transition: opacity 240ms ease-out;
+        }
+
+        /* PRESS: fast, no overshoot, so it feels instant */
+        .btn-calc.is-pressed {
+            /* the side you press sinks in and the button leans slightly that way (--rx/--ry/--tx/--ty set in JS) */
+            transform: perspective(320px) translate(var(--tx, 0px), var(--ty, 0px)) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) scale(0.95);
+            transition: transform 70ms cubic-bezier(0.2, 0, 0, 1), background-color 150ms ease;
+        }
+
+        .btn-calc.is-pressed::after {
+            opacity: 0.1;
+            transition-duration: 70ms;
+        }
+
+        .btn-calc > :not(.btn-ripple) {
+            position: relative;
+            z-index: 1;
+        }
+
+        .btn-ripple {
+            position: absolute;
+            z-index: 0;
+            left: var(--ripple-x, 50%);
+            top: var(--ripple-y, 50%);
+            width: var(--ripple-size, 0px);
+            height: var(--ripple-size, 0px);
+            border-radius: 50%;
+            background: currentColor;
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0);
+            pointer-events: none;
+        }
+
+        .btn-ripple.is-running {
+            animation: calculator-ripple 520ms cubic-bezier(0.2, 0, 0, 1) forwards;
+        }
+
+        @keyframes calculator-ripple {
+            0% {
+                opacity: 0.16;
+                transform: translate(-50%, -50%) scale(0);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .btn-calc,
+            .btn-calc.is-pressed,
+            .btn-calc::after {
+                transition: none;
+            }
+
+            .btn-ripple {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body id="app-body" class="bg-black text-slate-800 dark:text-slate-100 min-h-screen flex items-center justify-center p-4 font-sans select-none overflow-hidden relative transition-colors duration-200">
+
+    <!-- Ambient Background Decorations for Desktop Widget Context -->
+    <div class="absolute -top-32 -left-32 w-96 h-96 bg-zinc-800/20 dark:bg-zinc-800/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute -bottom-32 -right-32 w-96 h-96 bg-zinc-700/20 dark:bg-zinc-700/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <!-- Draggable Floating Calculator Widget -->
+    <div id="draggable-widget" class="glass-card w-[360px] h-[540px] rounded-3xl shadow-2xl border border-slate-200/80 dark:border-zinc-800/80 flex flex-col relative overflow-hidden absolute cursor-default bg-white dark:bg-zinc-900" style="left: calc(50% - 180px); top: calc(50% - 270px);">
+        <div id="widget-content" class="flex flex-col w-full h-full">
+        
+        <!-- Draggable Header Bar -->
+        <div id="widget-header" class="font-ui px-4 pt-3 pb-1 flex justify-between items-center z-10 cursor-grab active:cursor-grabbing touch-none border-b border-slate-200/40 dark:border-zinc-800/40">
+            <!-- Brand Badge and Wordmark -->
+            <div class="flex flex-col pointer-events-none">
+                <span class="font-ui text-[9px] font-extrabold tracking-[0.2em] text-slate-400 dark:text-zinc-500 uppercase leading-none">Powered by</span>
+                <span class="font-display text-2xl font-semibold tracking-tight text-slate-800 dark:text-zinc-100 leading-tight">Dracable</span>
+            </div>
+            
+            <!-- Header Action Controls -->
+            <div class="flex items-center gap-1">
+                <!-- Theme Palette Selector Popup Toggle -->
+                <button id="btn-palette-toggle" title="Color Theme Accent" class="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 rounded-full hover:bg-slate-200/50 dark:hover:bg-zinc-900/80 transition">
+                    <svg class="icon text-xs" viewBox="0 0 24 24" aria-hidden="true"><circle cx="13.5" cy="6.5" r=".6" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".6" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".6" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".6" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.83-.44-1.12-.29-.29-.44-.65-.44-1.13a1.64 1.64 0 0 1 1.67-1.67h2c3.05 0 5.55-2.5 5.55-5.55C21.97 6.01 17.46 2 12 2z"/></svg>
+                </button>
+
+                <!-- History Toggle -->
+                <button id="btn-toggle-history" title="History" class="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 rounded-full hover:bg-slate-200/50 dark:hover:bg-zinc-900/80 transition">
+                    <svg class="icon text-xs" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+                </button>
+
+                <!-- Dark / Light Theme Toggle -->
+                <button id="btn-theme-toggle" title="Toggle Light/Dark" class="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 rounded-full hover:bg-slate-200/50 dark:hover:bg-zinc-900/80 transition">
+                    <svg id="theme-icon" class="icon text-xs" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+                </button>
+
+                <!-- Minimize to bubble -->
+                <button id="btn-minimize" title="Minimize" aria-label="Minimize to bubble" class="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 rounded-full hover:bg-slate-200/50 dark:hover:bg-zinc-900/80 transition">
+                    <svg class="icon text-xs" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="m14 10 7-7"/><path d="m3 21 7-7"/></svg>
+                </button>
+
+                <!-- Drag Handle Indicator -->
+                <div class="p-1.5 ml-0.5 text-slate-300 dark:text-zinc-600 cursor-grab">
+                    <svg class="icon text-xs" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="5" r="1" fill="currentColor"/><circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="9" cy="19" r="1" fill="currentColor"/><circle cx="15" cy="5" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="19" r="1" fill="currentColor"/></svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Accent Color Chooser Popover Dropdown -->
+        <div id="palette-popover" class="font-ui hidden absolute top-12 right-14 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-xl rounded-2xl p-2 z-30 flex gap-2">
+            <button data-accent="blue" class="w-6 h-6 rounded-full bg-blue-500 hover:scale-110 transition ring-2 ring-offset-2 ring-transparent focus:ring-blue-500"></button>
+            <button data-accent="purple" class="w-6 h-6 rounded-full bg-purple-500 hover:scale-110 transition ring-2 ring-offset-2 ring-transparent focus:ring-purple-500"></button>
+            <button data-accent="emerald" class="w-6 h-6 rounded-full bg-emerald-500 hover:scale-110 transition ring-2 ring-offset-2 ring-transparent focus:ring-emerald-500"></button>
+            <button data-accent="rose" class="w-6 h-6 rounded-full bg-rose-500 hover:scale-110 transition ring-2 ring-offset-2 ring-transparent focus:ring-rose-500"></button>
+            <button data-accent="amber" class="w-6 h-6 rounded-full bg-amber-500 hover:scale-110 transition ring-2 ring-offset-2 ring-transparent focus:ring-amber-500"></button>
+        </div>
+
+        <!-- Calculator Output Screen -->
+        <div class="px-5 py-3 flex flex-col justify-end items-end h-[105px] select-text">
+            <!-- Secondary Equation Line -->
+            <div id="display-secondary" class="text-xs font-medium text-slate-400 dark:text-zinc-500 h-5 overflow-hidden text-right w-full tracking-wider truncate"></div>
+            
+            <!-- Main Result Line -->
+            <div id="display-main" class="text-4xl font-bold tracking-tight text-slate-900 dark:text-white text-right w-full break-all mt-0.5">
+                0
+            </div>
+        </div>
+
+        <!-- History Drawer Overlay -->
+        <div id="history-panel" class="font-ui absolute inset-0 bg-slate-50/95 dark:bg-black/95 backdrop-blur-md z-20 flex flex-col transform translate-y-full transition-transform duration-300 ease-in-out p-4">
+            <div class="flex justify-between items-center mb-3 border-b border-slate-200 dark:border-zinc-800 pb-2">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
+                    <svg class="icon " viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg> History Log
+                </h3>
+                <div class="flex items-center gap-1">
+                    <button id="btn-clear-history" class="text-[11px] font-semibold text-red-500 hover:text-red-600 px-2 py-0.5 rounded hover:bg-red-50 dark:hover:bg-red-950/40 transition">Clear</button>
+                    <button id="btn-close-history" class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 rounded-full">
+                        <svg class="icon text-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div id="history-list" class="flex-1 overflow-y-auto space-y-2 pr-1 text-right">
+                <p id="empty-history-msg" class="text-center text-slate-400 dark:text-zinc-600 text-xs py-10">No history saved yet.</p>
+            </div>
+        </div>
+
+        <!-- Button Grid (Keypad) -->
+        <div class="p-3.5 grid grid-cols-4 gap-2 flex-1 bg-slate-200/50 dark:bg-zinc-950 border-t border-slate-200/60 dark:border-zinc-800/60">
+            <!-- Row 1 -->
+            <button data-action="clear-all" class="btn-calc text-xs font-semibold rounded-xl bg-red-100 dark:bg-red-950/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400">AC</button>
+            <button data-action="delete" class="btn-calc text-xs font-semibold rounded-xl bg-slate-200/80 dark:bg-zinc-900 hover:bg-slate-300 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-200 border border-transparent dark:border-zinc-800">
+                <svg class="icon " viewBox="0 0 24 24" aria-hidden="true"><path d="M20 5H9l-7 7 7 7h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z"/><path d="m18 9-6 6M12 9l6 6"/></svg>
+            </button>
+            <button data-action="sqrt" class="btn-calc text-xs font-semibold rounded-xl bg-slate-200/80 dark:bg-zinc-900 hover:bg-slate-300 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-200 border border-transparent dark:border-zinc-800">√x</button>
+            <button data-action="sqr" class="btn-calc text-xs font-semibold rounded-xl bg-slate-200/80 dark:bg-zinc-900 hover:bg-slate-300 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-200 border border-transparent dark:border-zinc-800">x²</button>
+
+            <!-- Row 2 -->
+            <button data-action="toggle-sign" class="btn-calc text-xs font-semibold rounded-xl bg-slate-200/80 dark:bg-zinc-900 hover:bg-slate-300 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-200 border border-transparent dark:border-zinc-800" aria-label="Toggle sign"><svg class="icon text-base" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width:2.25"><path d="M12 3v10M7 8h10M7 20h10"/></svg></button>
+            <button data-action="percent" class="btn-calc text-xs font-semibold rounded-xl bg-slate-200/80 dark:bg-zinc-900 hover:bg-slate-300 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-200 border border-transparent dark:border-zinc-800">%</button>
+            <button data-operator="/" class="btn-calc btn-op text-base font-bold rounded-xl bg-slate-200/80 dark:bg-zinc-900 hover:bg-slate-300 dark:hover:bg-zinc-800 text-blue-500 border border-transparent dark:border-zinc-800">÷</button>
+            <button data-operator="*" class="btn-calc btn-op text-base font-bold rounded-xl bg-slate-200/80 dark:bg-zinc-900 hover:bg-slate-300 dark:hover:bg-zinc-800 text-blue-500 border border-transparent dark:border-zinc-800">×</button>
+
+            <!-- Row 3 -->
+            <button data-number="7" class="btn-calc text-base font-semibold rounded-xl bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-100 shadow-sm border border-slate-200/50 dark:border-zinc-800">7</button>
+            <button data-number="8" class="btn-calc text-base font-semibold rounded-xl bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-100 shadow-sm border border-slate-200/50 dark:border-zinc-800">8</button>
+            <button data-number="9" class="btn-calc text-base font-semibold rounded-xl bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-100 shadow-sm border border-slate-200/50 dark:border-zinc-800">9</button>
+            <button data-operator="-" class="btn-calc btn-op text-lg font-bold rounded-xl bg-slate-200/80 dark:bg-zinc-900 hover:bg-slate-300 dark:hover:bg-zinc-800 text-blue-500 border border-transparent dark:border-zinc-800">−</button>
+
+            <!-- Row 4 -->
+            <button data-number="4" class="btn-calc text-base font-semibold rounded-xl bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-100 shadow-sm border border-slate-200/50 dark:border-zinc-800">4</button>
+            <button data-number="5" class="btn-calc text-base font-semibold rounded-xl bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-100 shadow-sm border border-slate-200/50 dark:border-zinc-800">5</button>
+            <button data-number="6" class="btn-calc text-base font-semibold rounded-xl bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-100 shadow-sm border border-slate-200/50 dark:border-zinc-800">6</button>
+            <button data-operator="+" class="btn-calc btn-op text-lg font-bold rounded-xl bg-slate-200/80 dark:bg-zinc-900 hover:bg-slate-300 dark:hover:bg-zinc-800 text-blue-500 border border-transparent dark:border-zinc-800">+</button>
+
+            <!-- Row 5 -->
+            <button data-number="1" class="btn-calc text-base font-semibold rounded-xl bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-100 shadow-sm border border-slate-200/50 dark:border-zinc-800">1</button>
+            <button data-number="2" class="btn-calc text-base font-semibold rounded-xl bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-100 shadow-sm border border-slate-200/50 dark:border-zinc-800">2</button>
+            <button data-number="3" class="btn-calc text-base font-semibold rounded-xl bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-100 shadow-sm border border-slate-200/50 dark:border-zinc-800">3</button>
+            <button id="btn-equals" data-action="calculate" class="btn-calc text-lg font-bold rounded-xl bg-blue-500 text-white row-span-2 hover:brightness-110 flex items-center justify-center">=</button>
+
+            <!-- Row 6 -->
+            <button data-number="0" class="btn-calc text-base font-semibold rounded-xl bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-100 shadow-sm border border-slate-200/50 dark:border-zinc-800 col-span-2">0</button>
+            <button data-action="decimal" class="btn-calc text-lg font-bold rounded-xl bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-100 shadow-sm border border-slate-200/50 dark:border-zinc-800">.</button>
+        </div>
+        </div><!-- /widget-content -->
+
+        <!-- Minimized bubble (shown only while minimized) -->
+        <button id="bubble-face" type="button" hidden aria-label="Open calculator" title="Open calculator">
+            <svg id="bubble-icon" class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M8 6h8"/><path d="M16 14v4"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+        </button>
+    </div>
+
+    <!-- Application Scripting Logic -->
+    <script>
+        // Core State
+        let currentInput = '0';
+        let previousInput = '';
+        let currentOperator = null;
+        let shouldResetDisplay = false;
+        let history = [];
+        let currentAccent = 'blue';
+
+        // Elements
+        const appBody = document.getElementById('app-body');
+        const widget = document.getElementById('draggable-widget');
+        const widgetHeader = document.getElementById('widget-header');
+        const displayMain = document.getElementById('display-main');
+        const displaySecondary = document.getElementById('display-secondary');
+        const historyPanel = document.getElementById('history-panel');
+        const historyList = document.getElementById('history-list');
+        const emptyHistoryMsg = document.getElementById('empty-history-msg');
+        const palettePopover = document.getElementById('palette-popover');
+        const equalsBtn = document.getElementById('btn-equals');
+
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let currentTranslateX = 0;
+        let currentTranslateY = 0;
+        let activePointerId = null;
+
+        widgetHeader.addEventListener('pointerdown', dragStart);
+        widgetHeader.addEventListener('pointermove', drag);
+        widgetHeader.addEventListener('pointerup', dragEnd);
+        widgetHeader.addEventListener('pointercancel', dragEnd);
+        widgetHeader.addEventListener('lostpointercapture', dragEnd);
+
+        function dragStart(e) {
+            if (e.target.closest('button') || e.button !== 0) return;
+
+            isDragging = true;
+            document.body.classList.add('is-dragging');
+            activePointerId = e.pointerId;
+            widgetHeader.setPointerCapture(e.pointerId);
+
+            dragStartX = e.clientX - currentTranslateX;
+            dragStartY = e.clientY - currentTranslateY;
+            widget.style.willChange = 'transform';
+        }
+
+        function drag(e) {
+            if (!isDragging || e.pointerId !== activePointerId) return;
+
+            currentTranslateX = e.clientX - dragStartX;
+            currentTranslateY = e.clientY - dragStartY;
+            widget.style.transform = `translate3d(${currentTranslateX}px, ${currentTranslateY}px, 0)`;
+        }
+
+        function dragEnd(e) {
+            if (!isDragging || (e.pointerId !== undefined && e.pointerId !== activePointerId)) return;
+
+            isDragging = false;
+            document.body.classList.remove('is-dragging');
+            activePointerId = null;
+            widget.style.willChange = '';
+        }
+
+        // Theme Switcher Toggle
+        const THEME_ICONS = {
+            sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+            moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>'
+        };
+        document.getElementById('btn-theme-toggle').addEventListener('click', () => {
+            const isDark = document.documentElement.classList.toggle('dark');
+            document.getElementById('theme-icon').innerHTML = isDark ? THEME_ICONS.sun : THEME_ICONS.moon;
+        });
+
+        // Accent Palette Popover Toggle
+        document.getElementById('btn-palette-toggle').addEventListener('click', (e) => {
+            e.stopPropagation();
+            palettePopover.classList.add('hidden');
+            palettePopover.classList.toggle('hidden');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!palettePopover.contains(e.target)) palettePopover.classList.add('hidden');
+        });
+
+        // Handle Accent Colors Selection
+        palettePopover.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                setAccentColor(btn.dataset.accent);
+                palettePopover.classList.add('hidden');
+            });
+        });
+
+        function setAccentColor(accent) {
+            currentAccent = accent;
+            const accentHex = {
+                blue: '#3b82f6',
+                purple: '#8b5cf6',
+                emerald: '#10b981',
+                rose: '#f43f5e',
+                amber: '#f59e0b'
+            }[accent];
+
+            equalsBtn.style.backgroundColor = accentHex;
+            document.getElementById('bubble-face').style.backgroundColor = accentHex;
+
+            document.querySelectorAll('.btn-op').forEach(opBtn => {
+                opBtn.style.color = accentHex;
+            });
+        }
+
+        // History Drawer Toggle
+        document.getElementById('btn-toggle-history').addEventListener('click', () => {
+            historyPanel.classList.remove('translate-y-full');
+        });
+
+        document.getElementById('btn-close-history').addEventListener('click', () => {
+            historyPanel.classList.add('translate-y-full');
+        });
+
+        document.getElementById('btn-clear-history').addEventListener('click', () => {
+            history = [];
+            renderHistory();
+        });
+
+        // Display Utilities
+        function updateDisplay() {
+            displayMain.textContent = formatNumber(currentInput);
+            adjustFontSize();
+
+            if (currentOperator !== null) {
+                displaySecondary.textContent = `${formatNumber(previousInput)} ${getOperatorSymbol(currentOperator)}`;
+            } else {
+                displaySecondary.textContent = '';
+            }
+        }
+
+        function adjustFontSize() {
+            const len = currentInput.length;
+            if (len > 12) {
+                displayMain.className = 'text-xl font-bold tracking-tight text-slate-900 dark:text-white text-right w-full break-all mt-0.5';
+            } else if (len > 8) {
+                displayMain.className = 'text-2xl font-bold tracking-tight text-slate-900 dark:text-white text-right w-full break-all mt-0.5';
+            } else {
+                displayMain.className = 'text-4xl font-bold tracking-tight text-slate-900 dark:text-white text-right w-full break-all mt-0.5';
+            }
+        }
+
+        function formatNumber(numStr) {
+            if (numStr === 'Error' || numStr === 'NaN') return 'Error';
+            if (!numStr) return '0';
+            const parts = numStr.split('.');
+            const integerPart = parts[0];
+            const decimalPart = parts.length > 1 ? '.' + parts[1] : '';
+            const formatted = Number(integerPart).toLocaleString('en-US');
+            return isNaN(Number(integerPart)) ? numStr : formatted + decimalPart;
+        }
+
+        function getOperatorSymbol(op) {
+            switch (op) {
+                case '+': return '+';
+                case '-': return '−';
+                case '*': return '×';
+                case '/': return '÷';
+                default: return '';
+            }
+        }
+
+        // Calculation Mechanics
+        function appendNumber(numStr) {
+            if (currentInput === '0' || shouldResetDisplay) {
+                currentInput = numStr;
+                shouldResetDisplay = false;
+            } else {
+                if (currentInput.replace('.', '').length >= 14) return;
+                currentInput += numStr;
+            }
+            updateDisplay();
+        }
+
+        function appendDecimal() {
+            if (shouldResetDisplay) {
+                currentInput = '0.';
+                shouldResetDisplay = false;
+                updateDisplay();
+                return;
+            }
+            if (!currentInput.includes('.')) {
+                currentInput += '.';
+                updateDisplay();
+            }
+        }
+
+        function handleOperator(op) {
+            if (currentInput === 'Error') clearAll();
+            if (currentOperator !== null && !shouldResetDisplay) {
+                calculateResult();
+            }
+            previousInput = currentInput;
+            currentOperator = op;
+            shouldResetDisplay = true;
+            updateDisplay();
+        }
+
+        function calculateResult() {
+            if (currentOperator === null || shouldResetDisplay) return;
+
+            const prev = parseFloat(previousInput);
+            const curr = parseFloat(currentInput);
+            let result = 0;
+
+            if (isNaN(prev) || isNaN(curr)) return;
+
+            switch (currentOperator) {
+                case '+': result = prev + curr; break;
+                case '-': result = prev - curr; break;
+                case '*': result = prev * curr; break;
+                case '/':
+                    if (curr === 0) {
+                        currentInput = 'Error';
+                        currentOperator = null;
+                        previousInput = '';
+                        shouldResetDisplay = true;
+                        updateDisplay();
+                        return;
+                    }
+                    result = prev / curr;
+                    break;
+                default: return;
+            }
+
+            result = Math.round(result * 1e10) / 1e10;
+            const resStr = result.toString();
+
+            addHistoryItem(`${formatNumber(previousInput)} ${getOperatorSymbol(currentOperator)} ${formatNumber(currentInput)}`, formatNumber(resStr));
+
+            displaySecondary.textContent = `${formatNumber(previousInput)} ${getOperatorSymbol(currentOperator)} ${formatNumber(currentInput)} =`;
+            currentInput = resStr;
+            currentOperator = null;
+            shouldResetDisplay = true;
+            adjustFontSize();
+            displayMain.textContent = formatNumber(currentInput);
+        }
+
+        function clearAll() {
+            currentInput = '0';
+            previousInput = '';
+            currentOperator = null;
+            shouldResetDisplay = false;
+            updateDisplay();
+        }
+
+        function deleteLast() {
+            if (shouldResetDisplay) return;
+            if (currentInput === 'Error') return clearAll();
+            if (currentInput.length === 1 || (currentInput.length === 2 && currentInput.startsWith('-'))) {
+                currentInput = '0';
+            } else {
+                currentInput = currentInput.slice(0, -1);
+            }
+            updateDisplay();
+        }
+
+        function toggleSign() {
+            if (currentInput === '0' || currentInput === 'Error') return;
+            currentInput = currentInput.startsWith('-') ? currentInput.slice(1) : '-' + currentInput;
+            updateDisplay();
+        }
+
+        function handleSquareRoot() {
+            if (currentInput === 'Error') return;
+            const val = parseFloat(currentInput);
+            if (val < 0) {
+                currentInput = 'Error';
+            } else {
+                currentInput = (Math.round(Math.sqrt(val) * 1e10) / 1e10).toString();
+            }
+            shouldResetDisplay = true;
+            updateDisplay();
+        }
+
+        function handleSquare() {
+            if (currentInput === 'Error') return;
+            const val = parseFloat(currentInput);
+            currentInput = (Math.round(Math.pow(val, 2) * 1e10) / 1e10).toString();
+            shouldResetDisplay = true;
+            updateDisplay();
+        }
+
+        function handlePercentage() {
+            if (currentInput === 'Error') return;
+            const val = parseFloat(currentInput);
+            currentInput = (val / 100).toString();
+            updateDisplay();
+        }
+
+        // History Management
+        function addHistoryItem(expression, result) {
+            history.unshift({ expression, result });
+            if (history.length > 15) history.pop();
+            renderHistory();
+        }
+
+        function renderHistory() {
+            historyList.innerHTML = '';
+            if (history.length === 0) {
+                emptyHistoryMsg.classList.remove('hidden');
+                historyList.appendChild(emptyHistoryMsg);
+                return;
+            }
+
+            emptyHistoryMsg.classList.add('hidden');
+            history.forEach(item => {
+                const itemElem = document.createElement('div');
+                itemElem.className = 'font-ui p-2 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-800/60 cursor-pointer transition flex flex-col items-end';
+                itemElem.innerHTML = `
+                    <span class="text-[10px] text-slate-400 dark:text-slate-500">${item.expression}</span>
+                    <span class="text-sm font-bold text-slate-800 dark:text-slate-100">= ${item.result}</span>
+                `;
+                itemElem.addEventListener('click', () => {
+                    currentInput = item.result.replace(/,/g, '');
+                    shouldResetDisplay = true;
+                    updateDisplay();
+                    historyPanel.classList.add('translate-y-full');
+                });
+                historyList.appendChild(itemElem);
+            });
+        }
+
+        // Press feedback: guarantees the pressed look stays visible for a minimum time,
+        // so very quick taps still show a full, readable press instead of a flicker.
+        const MIN_PRESS_MS = 90;
+
+        const TILT_DEG = 9;     // max lean at the very edge of a button
+        const TILT_SHIFT = 1.6; // px the button slides toward the press point
+
+        function setPressTilt(button, clientX, clientY) {
+            let nx = 0, ny = 0;
+            if (clientX !== undefined && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                const r = button.getBoundingClientRect();
+                nx = clamp((clientX - (r.left + r.width / 2)) / (r.width / 2), -1, 1);
+                ny = clamp((clientY - (r.top + r.height / 2)) / (r.height / 2), -1, 1);
+            }
+            button.style.setProperty('--rx', `${(-ny * TILT_DEG).toFixed(2)}deg`);
+            button.style.setProperty('--ry', `${(nx * TILT_DEG).toFixed(2)}deg`);
+            button.style.setProperty('--tx', `${(nx * TILT_SHIFT).toFixed(2)}px`);
+            button.style.setProperty('--ty', `${(ny * TILT_SHIFT).toFixed(2)}px`);
+        }
+
+        function pressButton(button, clientX, clientY) {
+            setPressTilt(button, clientX, clientY);
+            clearTimeout(button._releaseTimer);
+            button._pressStart = performance.now();
+            button.classList.add('is-pressed');
+        }
+
+        function releaseButton(button) {
+            if (!button.classList.contains('is-pressed')) return;
+            const wait = Math.max(0, MIN_PRESS_MS - (performance.now() - button._pressStart));
+            clearTimeout(button._releaseTimer);
+            button._releaseTimer = setTimeout(() => button.classList.remove('is-pressed'), wait);
+        }
+
+        function playButtonRipple(button, clientX, clientY) {
+            const ripple = button.querySelector('.btn-ripple');
+            if (!ripple || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+            const rect = button.getBoundingClientRect();
+            const x = clientX === undefined ? rect.width / 2 : clientX - rect.left;
+            const y = clientY === undefined ? rect.height / 2 : clientY - rect.top;
+            const radius = Math.hypot(Math.max(x, rect.width - x), Math.max(y, rect.height - y));
+
+            button.style.setProperty('--ripple-x', `${x}px`);
+            button.style.setProperty('--ripple-y', `${y}px`);
+            button.style.setProperty('--ripple-size', `${radius * 2}px`);
+            ripple.classList.remove('is-running');
+            void ripple.offsetWidth;
+            ripple.classList.add('is-running');
+        }
+
+        document.querySelectorAll('.btn-calc').forEach(button => {
+            Array.from(button.childNodes).forEach(node => {
+                if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+                    const label = document.createElement('span');
+                    label.textContent = node.textContent;
+                    node.replaceWith(label);
+                }
+            });
+
+            const ripple = document.createElement('span');
+            ripple.className = 'btn-ripple';
+            ripple.setAttribute('aria-hidden', 'true');
+            button.prepend(ripple);
+
+            button.addEventListener('pointerdown', e => {
+                if (e.button !== 0) return;
+                pressButton(button, e.clientX, e.clientY);
+                playButtonRipple(button, e.clientX, e.clientY);
+            });
+            // sliding a finger/mouse across a held button keeps the lean following it
+            button.addEventListener('pointermove', e => {
+                if (button.classList.contains('is-pressed') && e.buttons) setPressTilt(button, e.clientX, e.clientY);
+            });
+            ['pointerup', 'pointercancel', 'pointerleave'].forEach(type => {
+                button.addEventListener(type, () => releaseButton(button));
+            });
+        });
+
+        // Button Event Listener Delegation
+        document.querySelectorAll('.btn-calc').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const btn = e.currentTarget;
+                const num = btn.dataset.number;
+                const op = btn.dataset.operator;
+                const action = btn.dataset.action;
+
+                if (num !== undefined) appendNumber(num);
+                else if (op !== undefined) handleOperator(op);
+                else if (action !== undefined) {
+                    switch (action) {
+                        case 'clear-all': clearAll(); break;
+                        case 'delete': deleteLast(); break;
+                        case 'decimal': appendDecimal(); break;
+                        case 'calculate': calculateResult(); break;
+                        case 'toggle-sign': toggleSign(); break;
+                        case 'percent': handlePercentage(); break;
+                        case 'sqrt': handleSquareRoot(); break;
+                        case 'sqr': handleSquare(); break;
+                    }
+                }
+            });
+        });
+
+        // Keyboard Shortcut Mapping
+        window.addEventListener('keydown', (e) => {
+            if (isMinimized) return;
+            let keySelector = null;
+
+            if (e.key >= '0' && e.key <= '9') {
+                appendNumber(e.key);
+                keySelector = `[data-number="${e.key}"]`;
+            } else if (e.key === '.') {
+                appendDecimal();
+                keySelector = `[data-action="decimal"]`;
+            } else if (['+', '-', '*', '/'].includes(e.key)) {
+                handleOperator(e.key);
+                keySelector = `[data-operator="${e.key}"]`;
+            } else if (e.key === 'Enter' || e.key === '=') {
+                e.preventDefault();
+                calculateResult();
+                keySelector = `[data-action="calculate"]`;
+            } else if (e.key === 'Backspace') {
+                deleteLast();
+                keySelector = `[data-action="delete"]`;
+            } else if (e.key === 'Escape' || e.key.toLowerCase() === 'c') {
+                clearAll();
+                keySelector = `[data-action="clear-all"]`;
+            } else if (e.key === '%') {
+                handlePercentage();
+                keySelector = `[data-action="percent"]`;
+            }
+
+            if (keySelector) {
+                const btn = document.querySelector(keySelector);
+                if (btn) {
+                    pressButton(btn);
+                    playButtonRipple(btn);
+                    releaseButton(btn);
+                }
+            }
+        });
+
+
+        // ------------------------------------------------------------------
+        // Minimize to bubble  (circular reveal driven by a critically damped spring)
+        // ------------------------------------------------------------------
+        const BUBBLE_R = 30;                 // bubble radius in px
+        const bubbleFace = document.getElementById('bubble-face');
+        const bubbleIcon = document.getElementById('bubble-icon');
+        const widgetContent = document.getElementById('widget-content');
+
+        let isMinimized = false;             // logical state (where we are heading)
+        let bubbleX = null;                  // bubble centre, in widget coordinates (set on first minimize)
+        let bubbleY = null;
+        let maxR = 0;                        // radius that fully reveals the widget
+        const mini = { p: 1, v: 0, target: 1, raf: 0, last: 0 };   // p: 0 = bubble, 1 = full calculator
+
+        const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+        const smooth = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+        const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        function applyTranslate() {
+            widget.style.transform = `translate3d(${currentTranslateX}px, ${currentTranslateY}px, 0)`;
+        }
+
+        function updateMaxRadius() {
+            const w = widget.offsetWidth, h = widget.offsetHeight;
+            maxR = Math.max(
+                Math.hypot(bubbleX, bubbleY),
+                Math.hypot(w - bubbleX, bubbleY),
+                Math.hypot(bubbleX, h - bubbleY),
+                Math.hypot(w - bubbleX, h - bubbleY)
+            ) + 2;
+        }
+
+        function placeBubbleFace() {
+            bubbleFace.style.left = (bubbleX - BUBBLE_R) + 'px';
+            bubbleFace.style.top = (bubbleY - BUBBLE_R) + 'px';
+        }
+
+        // Every visual is a pure function of p, so the animation can be interrupted at any moment.
+        function renderMini(p) {
+            const t = clamp(p, 0, 1);
+            const r = BUBBLE_R + (maxR - BUBBLE_R) * t;
+            widget.style.clipPath = `circle(${r.toFixed(2)}px at ${bubbleX}px ${bubbleY}px)`;
+
+            const c = smooth((t - 0.12) / 0.55);            // calculator content fades/zooms in
+            widgetContent.style.opacity = c.toFixed(3);
+            widgetContent.style.transformOrigin = `${bubbleX}px ${bubbleY}px`;
+            widgetContent.style.transform = `scale(${(0.86 + 0.14 * c).toFixed(4)})`;
+
+            const f = 1 - smooth(t / 0.4);                  // bubble face fades out
+            bubbleFace.style.opacity = f.toFixed(3);
+            bubbleIcon.style.transform = `scale(${(0.55 + 0.45 * f).toFixed(3)}) rotate(${((1 - f) * -40).toFixed(1)}deg)`;
+        }
+
+        // Keep the bubble's centre inside the window (used while dragging / resizing)
+        function clampBubbleIntoView() {
+            const r = widget.getBoundingClientRect();
+            const m = BUBBLE_R + 8;
+            const cx = r.left + bubbleX, cy = r.top + bubbleY;
+            const nx = clamp(cx, m, Math.max(m, window.innerWidth - m));
+            const ny = clamp(cy, m, Math.max(m, window.innerHeight - m));
+            if (nx !== cx || ny !== cy) {
+                currentTranslateX += nx - cx;
+                currentTranslateY += ny - cy;
+                applyTranslate();
+            }
+        }
+
+        // Before collapsing: make sure the spot where the bubble forms is on screen
+        function chooseBubbleSpot() {
+            if (bubbleX === null) {              // first time: bottom-right corner of the calculator
+                bubbleX = widget.offsetWidth - BUBBLE_R - 18;
+                bubbleY = widget.offsetHeight - BUBBLE_R - 18;
+            }
+            const r = widget.getBoundingClientRect();
+            const m = BUBBLE_R + 8;
+            const cx = clamp(r.left + bubbleX, m, Math.max(m, window.innerWidth - m));
+            const cy = clamp(r.top + bubbleY, m, Math.max(m, window.innerHeight - m));
+            bubbleX = clamp(cx - r.left, BUBBLE_R, widget.offsetWidth - BUBBLE_R);
+            bubbleY = clamp(cy - r.top, BUBBLE_R, widget.offsetHeight - BUBBLE_R);
+            updateMaxRadius();
+            placeBubbleFace();
+        }
+
+        // Before expanding from a resting bubble: slide the (invisible) calculator box so it fits on
+        // screen, and re-anchor the reveal circle so it still starts exactly under the bubble.
+        function fitBoxAroundBubble() {
+            const r = widget.getBoundingClientRect();
+            const M = 8;
+            const fit = (pos, size, vp) => (size + 2 * M > vp) ? (vp - size) / 2 : clamp(pos, M, vp - size - M);
+            const dx = fit(r.left, r.width, window.innerWidth) - r.left;
+            const dy = fit(r.top, r.height, window.innerHeight) - r.top;
+            if (dx || dy) {
+                currentTranslateX += dx;
+                currentTranslateY += dy;
+                applyTranslate();
+                bubbleX -= dx;
+                bubbleY -= dy;
+            }
+            updateMaxRadius();
+            placeBubbleFace();
+            renderMini(mini.p);
+        }
+
+        function settleMini() {
+            if (mini.target === 1) {
+                // Fully open: remove every trace of the animation
+                widget.style.clipPath = 'none';
+                widget.style.willChange = '';
+                widgetContent.style.opacity = '';
+                widgetContent.style.transform = '';
+                widgetContent.style.transformOrigin = '';
+                widgetContent.style.visibility = '';
+                bubbleFace.hidden = true;
+            } else {
+                // Fully collapsed: only the bubble remains
+                renderMini(0);
+                widget.style.willChange = '';
+                widgetContent.style.visibility = 'hidden';
+                bubbleFace.hidden = false;
+                clampBubbleIntoView();
+            }
+        }
+
+        function stepMini(now) {
+            const dt = Math.min((now - mini.last) / 1000, 0.032);
+            mini.last = now;
+
+            const K = 170;                       // stiffness
+            const C = 2 * Math.sqrt(K);          // critical damping: fast, smooth, zero overshoot
+            const sub = 4, h = dt / sub;
+            for (let i = 0; i < sub; i++) {
+                mini.v += (-K * (mini.p - mini.target) - C * mini.v) * h;
+                mini.p += mini.v * h;
+            }
+
+            if (Math.abs(mini.p - mini.target) < 0.0006 && Math.abs(mini.v) < 0.006) {
+                mini.p = mini.target;
+                mini.v = 0;
+                mini.raf = 0;
+                settleMini();
+                return;
+            }
+            renderMini(mini.p);
+            mini.raf = requestAnimationFrame(stepMini);
+        }
+
+        function startMini(target) {
+            mini.target = target;
+            bubbleFace.style.pointerEvents = target === 0 ? 'auto' : 'none';
+            widget.style.willChange = 'clip-path';
+            if (prefersReducedMotion()) {
+                cancelAnimationFrame(mini.raf);
+                mini.raf = 0;
+                mini.p = target;
+                mini.v = 0;
+                settleMini();
+                return;
+            }
+            if (!mini.raf) {
+                mini.last = performance.now();
+                mini.raf = requestAnimationFrame(stepMini);
+            }
+        }
+
+
+        // ------------------------------------------------------------------
+        // iOS-style bounce: every button springs in, in a wave rippling out from the bubble
+        // ------------------------------------------------------------------
+        const BOUNCE_MS = 700;
+        const BOUNCE_EASING = (() => {
+            // Under-damped spring sampled into a CSS linear() easing (overshoots ~12%, then settles)
+            const zeta = 0.55, omega = 14, dur = BOUNCE_MS / 1000, n = 40;
+            const wd = omega * Math.sqrt(1 - zeta * zeta);
+            const pts = [];
+            for (let i = 0; i <= n; i++) {
+                const t = dur * i / n;
+                const v = 1 - Math.exp(-zeta * omega * t) * (Math.cos(wd * t) + (zeta * omega / wd) * Math.sin(wd * t));
+                pts.push(v.toFixed(4));
+            }
+            pts[n] = '1';
+            const easing = `linear(${pts.join(', ')})`;
+            return (window.CSS && CSS.supports('animation-timing-function', easing))
+                ? easing
+                : 'cubic-bezier(0.34, 1.56, 0.64, 1)';
+        })();
+
+        let bounceAnims = [];
+
+        // Seconds until the reveal circle (critically damped spring, same as stepMini) reaches progress p
+        function revealTime(pNeeded) {
+            if (pNeeded <= 0) return 0;
+            const w = Math.sqrt(170);
+            for (let t = 0; t < 1; t += 0.004) {
+                if (1 - (1 + w * t) * Math.exp(-w * t) >= pNeeded) return t;
+            }
+            return 0.55;
+        }
+
+        function positionInWidget(el) {
+            let x = 0, y = 0;
+            while (el && el !== widget) {
+                x += el.offsetLeft;
+                y += el.offsetTop;
+                el = el.offsetParent;
+            }
+            return { x, y };
+        }
+
+        function bounceInButtons() {
+            bounceAnims.forEach(a => a.cancel());
+            bounceAnims = [];
+            document.querySelectorAll('.btn-calc').forEach(btn => {
+                const pos = positionInWidget(btn);
+                const cx = pos.x + btn.offsetWidth / 2;
+                const cy = pos.y + btn.offsetHeight / 2;
+                const dist = Math.hypot(cx - bubbleX, cy - bubbleY);
+                const need = (dist - BUBBLE_R) / Math.max(1, maxR - BUBBLE_R);
+                const delay = Math.min(revealTime(need) * 1000 * 0.8, 420);
+                const dx = (bubbleX - cx) * 0.25, dy = (bubbleY - cy) * 0.25;
+
+                bounceAnims.push(
+                    btn.animate(
+                        [
+                            { scale: '0.35', translate: `${dx}px ${dy}px` },
+                            { scale: '1', translate: '0px 0px' }
+                        ],
+                        { duration: BOUNCE_MS, delay, easing: BOUNCE_EASING, fill: 'backwards' }
+                    ),
+                    btn.animate(
+                        [{ opacity: 0 }, { opacity: 1 }],
+                        { duration: 200, delay, easing: 'ease-out', fill: 'backwards' }
+                    )
+                );
+            });
+        }
+
+        function minimizeWidget() {
+            if (isMinimized) return;
+            isMinimized = true;
+            palettePopover.classList.add('hidden');
+            historyPanel.classList.add('translate-y-full');
+            if (mini.p > 0.999) chooseBubbleSpot();      // fully open: pick where the bubble forms
+            bubbleFace.hidden = false;
+            startMini(0);
+        }
+
+        function expandWidget() {
+            if (!isMinimized) return;
+            isMinimized = false;
+            if (mini.p < 0.001) fitBoxAroundBubble();    // fully collapsed: make sure it will fit on screen
+            widgetContent.style.visibility = '';
+            if (!prefersReducedMotion() && mini.p < 0.9) bounceInButtons();
+            startMini(1);
+        }
+
+        document.getElementById('btn-minimize').addEventListener('click', minimizeWidget);
+
+        // Bubble: click to open, drag to move
+        let bubbleDrag = null;
+        let suppressBubbleClick = false;
+
+        bubbleFace.addEventListener('pointerdown', e => {
+            if (e.button !== 0) return;
+            suppressBubbleClick = false;
+            bubbleDrag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, tx: currentTranslateX, ty: currentTranslateY, moved: false };
+            bubbleFace.setPointerCapture(e.pointerId);
+        });
+
+        bubbleFace.addEventListener('pointermove', e => {
+            if (!bubbleDrag || e.pointerId !== bubbleDrag.id) return;
+            const dx = e.clientX - bubbleDrag.sx, dy = e.clientY - bubbleDrag.sy;
+            if (!bubbleDrag.moved && Math.hypot(dx, dy) < 5) return;
+            if (!bubbleDrag.moved) document.body.classList.add('is-dragging');
+            bubbleDrag.moved = true;
+            currentTranslateX = bubbleDrag.tx + dx;
+            currentTranslateY = bubbleDrag.ty + dy;
+            applyTranslate();
+            clampBubbleIntoView();
+        });
+
+        ['pointerup', 'pointercancel'].forEach(type => {
+            bubbleFace.addEventListener(type, e => {
+                if (!bubbleDrag || e.pointerId !== bubbleDrag.id) return;
+                suppressBubbleClick = bubbleDrag.moved;     // a drag must not count as a click
+                bubbleDrag = null;
+                document.body.classList.remove('is-dragging');
+            });
+        });
+
+        bubbleFace.addEventListener('click', () => {
+            if (suppressBubbleClick) { suppressBubbleClick = false; return; }
+            expandWidget();
+        });
+
+        window.addEventListener('resize', () => {
+            if (isMinimized && !mini.raf) clampBubbleIntoView();
+        });
+
+        // Init
+        updateDisplay();
+    </script>
+</body>
+</html>
